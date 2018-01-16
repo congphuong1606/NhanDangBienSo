@@ -18,26 +18,37 @@ package org.tensorflow.demo;
 
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Paint.Style;
+import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.media.Image;
 import android.media.ImageReader.OnImageAvailableListener;
+import android.os.Environment;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Size;
 import android.util.TypedValue;
 import android.view.Display;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import org.tensorflow.demo.OverlayView.DrawCallback;
 import org.tensorflow.demo.env.BorderedText;
 import org.tensorflow.demo.env.ImageUtils;
 import org.tensorflow.demo.env.Logger;
+import org.tensorflow.demo.model.BienSo;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -45,13 +56,14 @@ import java.util.List;
 import java.util.Vector;
 
 public class DetectorActivity extends CameraActivity implements OnImageAvailableListener {
+
     private static final Logger LOGGER = new Logger();
 
     private static final int TF_OD_API_INPUT_SIZE = 300;
     private static final String TF_OD_API_MODEL_FILE =
-            "file:///android_asset/biensoxemay.pb";
+            "file:///android_asset/biensoxemay1.pb";
     private static final String TF_OD_API_LABELS_FILE = "file:///android_asset/biensoxemay.txt";
-    private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.6f;
+    private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.85f;
     private static final boolean MAINTAIN_ASPECT = false;
     private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
     private static final boolean SAVE_PREVIEW_BITMAP = false;
@@ -142,6 +154,8 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                 });
     }
 
+    private ImageView iv;
+
     protected void processImageRGBbytes(int[] rgbBytes) {
         rgbFrameBitmap.setPixels(rgbBytes, 0, previewWidth, 0, 0, previewWidth, previewHeight);
         final Canvas canvas = new Canvas(croppedBitmap);
@@ -168,6 +182,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                         paint.setStrokeWidth(2.0f);
 
                         mappedRecognitions.clear();
+                        bienSos.clear();
                         for (final Classifier.Recognition result : results) {
                             final RectF location = result.getLocation();
                             if (location != null && result.getConfidence() >= MINIMUM_CONFIDENCE_TF_OD_API) {
@@ -175,8 +190,40 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                                 cropToFrameTransform.mapRect(location);
                                 result.setLocation(location);
                                 mappedRecognitions.add(result);
+                                final int x = (int) location.left;
+                                final int y = (int) location.top ;
+                                final int w = (int) location.right - (int) location.left ;
+                                final int h = (int) location.bottom - (int) location.top ;
+                                Bitmap bitmap = null;
+
+                                try {
+                                    bitmap=saveBitmap(cutBitmap(rgbFrameBitmap, x, y, w, h));
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                                int flag = -1;
+                                for (BienSo bienSo : bienSos) {
+                                    if (Integer.valueOf(result.getId()) == bienSo.getId()) {
+                                        flag = Integer.valueOf(result.getId());
+                                    }
+                                }
+                                if (flag == -1) {
+                                    bienSos.add(new BienSo(Integer.valueOf(result.getId()), bitmap));
+                                }else {
+                                    bienSos.remove(flag);
+                                    bienSos.add(flag,new BienSo(flag, bitmap));
+                                }
+
+
                             }
                         }
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (!bienSos.isEmpty())
+                                bienSoAdapter.notifyDataSetChanged();
+                            }
+                        });
 
                         requestRender();
                         detectionOverlay.postInvalidate();
@@ -187,6 +234,51 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                     }
                 });
     }
+
+    private Bitmap saveBitmap(Bitmap bitmap) throws Exception {
+        Matrix matrix = new Matrix();
+        matrix.postRotate(90);
+        Bitmap bmp = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+        File file = new File(Environment.getExternalStorageDirectory() + "/Tensorflow/" + System.currentTimeMillis() + ".jpg");
+        if (!file.exists()) {
+            file.createNewFile();
+        }
+        FileOutputStream outputStream = new FileOutputStream(file);
+        bmp.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+        outputStream.flush();
+        outputStream.close();
+        return bmp;
+    }
+
+    private Bitmap cutBitmap(Bitmap originalBitmap, int x, int y, int width, int height) {
+        Bitmap cutBitmap = Bitmap.createBitmap(width,
+                height, Bitmap.Config.ARGB_8888);
+        Matrix matrix = new Matrix();
+        matrix.postRotate(90);
+        Canvas canvas = new Canvas(cutBitmap);
+        Rect srcRect = new Rect(x, y, x + width, y + height);
+        Rect desRect = new Rect(0, 0, width, height);
+        canvas.drawBitmap(originalBitmap, srcRect, desRect, null);
+        return cutBitmap;
+    }
+
+//    private Bitmap getBitMap(Bitmap cropCopyBitmap, RectF location) {
+//        int targetWidth  = 300;
+//        int targetHeight = 300;
+//        Paint paint = new Paint();
+//        paint.setFilterBitmap(true);
+//        Bitmap targetBitmap = Bitmap.createBitmap(, targetHeight,Bitmap.Config.ARGB_8888);
+//        Canvas canvas = new Canvas(targetBitmap);
+//        Path path = new Path();
+//        path.addRect(location, Path.Direction.CW);
+//        canvas.clipPath(path);
+//        canvas.drawBitmap( cropCopyBitmap, new Rect((int)location.left,(int) location.top, cropCopyBitmap.getWidth(), cropCopyBitmap.getHeight()),
+//                new Rect(0, 0, targetWidth, targetHeight), paint);
+//        Matrix matrix = new Matrix();
+//        matrix.postScale(1f, 1f);
+//        return Bitmap.createBitmap(targetBitmap, 0, 0, 100, 100, matrix, true);
+//    }
+
 
     @Override
     protected int getLayoutId() {

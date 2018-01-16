@@ -21,6 +21,7 @@ import android.app.Activity;
 import android.app.Fragment;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.hardware.Camera;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
@@ -35,24 +36,36 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Trace;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.Size;
 import android.view.KeyEvent;
 import android.view.WindowManager;
+import android.widget.ImageView;
 import android.widget.Toast;
 
+import org.tensorflow.demo.adapter.BienSoAdapter;
 import org.tensorflow.demo.env.ImageUtils;
 import org.tensorflow.demo.env.Logger;
+import org.tensorflow.demo.model.BienSo;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 
 // Explicit import needed for internal Google builds.
 
 public abstract class CameraActivity extends Activity implements OnImageAvailableListener, Camera.
         PreviewCallback {
+
+    protected RecyclerView recyclerView;
+    protected ImageView imageView;
+    protected ArrayList<BienSo> bienSos = new ArrayList<>();
+    protected BienSoAdapter bienSoAdapter;
+    protected LinearLayoutManager layoutManager;
+
+
     private static final Logger LOGGER = new Logger();
-
     private static final int PERMISSIONS_REQUEST = 1;
-
     private static final String PERMISSION_CAMERA = Manifest.permission.CAMERA;
     private static final String PERMISSION_STORAGE = Manifest.permission.WRITE_EXTERNAL_STORAGE;
     protected int previewWidth = 0;
@@ -74,6 +87,13 @@ public abstract class CameraActivity extends Activity implements OnImageAvailabl
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         setContentView(R.layout.activity_camera);
+        recyclerView=(RecyclerView)findViewById(R.id.rcv_bienso);
+        imageView=(ImageView) findViewById(R.id.imv);
+
+        bienSoAdapter=new BienSoAdapter(bienSos);
+        layoutManager = new LinearLayoutManager(CameraActivity.this, LinearLayoutManager.HORIZONTAL, false);
+        recyclerView.setLayoutManager(layoutManager);
+        recyclerView.setAdapter(bienSoAdapter);
 
         if (hasPermission()) {
             setFragment();
