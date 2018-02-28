@@ -48,6 +48,7 @@ import org.tensorflow.demo.env.Logger;
 import org.tensorflow.demo.model.BienSo;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Collections;
@@ -235,18 +236,35 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                 });
     }
 
-    private Bitmap saveBitmap(Bitmap bitmap) throws Exception {
+    private Bitmap saveBitmap(Bitmap bitmap) {
         Matrix matrix = new Matrix();
         matrix.postRotate(90);
         Bitmap bmp = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
         File file = new File(Environment.getExternalStorageDirectory() + "/Tensorflow/" + System.currentTimeMillis() + ".jpg");
         if (!file.exists()) {
-            file.createNewFile();
+            try {
+                file.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
-        FileOutputStream outputStream = new FileOutputStream(file);
+        FileOutputStream outputStream = null;
+        try {
+            outputStream = new FileOutputStream(file);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
         bmp.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
-        outputStream.flush();
-        outputStream.close();
+        try {
+            outputStream.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        try {
+            outputStream.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         return bmp;
     }
 
