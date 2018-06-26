@@ -42,6 +42,7 @@ import android.util.Size;
 import android.view.KeyEvent;
 import android.view.WindowManager;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import org.tensorflow.demo.adapter.BienSoAdapter;
@@ -59,6 +60,7 @@ public abstract class CameraActivity extends Activity implements OnImageAvailabl
 
     protected RecyclerView recyclerView;
     protected ImageView imageView;
+    protected TextView tvBienSo;
     protected ArrayList<BienSo> bienSos = new ArrayList<>();
     protected BienSoAdapter bienSoAdapter;
     protected LinearLayoutManager layoutManager;
@@ -79,7 +81,7 @@ public abstract class CameraActivity extends Activity implements OnImageAvailabl
     private HandlerThread handlerThread;
     private boolean useCamera2API;
     private int[] rgbBytes = null;
-
+    Bitmap bitmap2 = null;
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
         LOGGER.d("onCreate " + this);
@@ -88,7 +90,7 @@ public abstract class CameraActivity extends Activity implements OnImageAvailabl
 
         setContentView(R.layout.activity_camera);
         recyclerView=(RecyclerView)findViewById(R.id.rcv_bienso);
-        imageView=(ImageView) findViewById(R.id.imv);
+        tvBienSo=(TextView) findViewById(R.id.tv_aaaaaaaaaa);
 
         bienSoAdapter=new BienSoAdapter(bienSos);
         layoutManager = new LinearLayoutManager(CameraActivity.this, LinearLayoutManager.HORIZONTAL, false);

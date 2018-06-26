@@ -35,11 +35,17 @@ import android.media.ImageReader.OnImageAvailableListener;
 import android.os.Environment;
 import android.os.SystemClock;
 import android.text.TextUtils;
+import android.util.Log;
 import android.util.Size;
+import android.util.SparseArray;
 import android.util.TypedValue;
 import android.view.Display;
 import android.widget.ImageView;
 import android.widget.Toast;
+
+import com.google.android.gms.vision.Frame;
+import com.google.android.gms.vision.text.TextBlock;
+import com.google.android.gms.vision.text.TextRecognizer;
 
 import org.tensorflow.demo.OverlayView.DrawCallback;
 import org.tensorflow.demo.env.BorderedText;
@@ -89,6 +95,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
     private OverlayView detectionOverlay;
     private List<Classifier.Recognition> mappedRecognitions =
             new LinkedList<>();
+    private String textw;
 
     @Override
     public void onPreviewSizeChosen(final Size size, final int rotation) {
@@ -186,18 +193,20 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                         for (final Classifier.Recognition result : results) {
                             final RectF location = result.getLocation();
                             if (location != null && result.getConfidence() >= MINIMUM_CONFIDENCE_TF_OD_API) {
+
                                 canvas.drawRect(location, paint);
                                 cropToFrameTransform.mapRect(location);
                                 result.setLocation(location);
                                 mappedRecognitions.add(result);
                                 final int x = (int) location.left;
-                                final int y = (int) location.top ;
-                                final int w = (int) location.right - (int) location.left ;
-                                final int h = (int) location.bottom - (int) location.top ;
-                                Bitmap bitmap = null;
+                                final int y = (int) location.top;
+                                final int w = (int) location.right - (int) location.left;
+                                final int h = (int) location.bottom - (int) location.top;
+
 
                                 try {
-                                    bitmap=saveBitmap(cutBitmap(rgbFrameBitmap, x, y, w, h));
+//                                    bitmap2=ImageUtils.saveBitmap();saveBitmap(cutBitmap(rgbFrameBitmap, x, y, w, h));
+                                    bitmap2 = saveBitmap(cutBitmap(rgbFrameBitmap, x, y, w, h), System.currentTimeMillis() + "");
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -208,10 +217,13 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                                     }
                                 }
                                 if (flag == -1) {
-                                    bienSos.add(new BienSo(Integer.valueOf(result.getId()), bitmap));
-                                }else {
+                                    if(result.getConfidence()>=0.999f){
+                                        textw = processImage(bitmap2);
+                                    }
+                                    bienSos.add(new BienSo(Integer.valueOf(result.getId()), bitmap2));
+                                } else {
                                     bienSos.remove(flag);
-                                    bienSos.add(flag,new BienSo(flag, bitmap));
+                                    bienSos.add(flag, new BienSo(flag, bitmap2));
                                 }
 
 
@@ -220,8 +232,13 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                if (!bienSos.isEmpty())
-                                bienSoAdapter.notifyDataSetChanged();
+                                if (!bienSos.isEmpty()) {
+                                    bienSoAdapter.notifyDataSetChanged();
+                                }
+                                if (textw != "") {
+                                    tvBienSo.setText(textw);
+                                }
+
                             }
                         });
 
@@ -235,19 +252,51 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                 });
     }
 
-    private Bitmap saveBitmap(Bitmap bitmap) throws Exception {
+    private String processImage(Bitmap bitmap) {
+        String t = "not operational";
+        TextRecognizer textRecognizer = new TextRecognizer.Builder(getApplicationContext()).build();
+        if (textRecognizer.isOperational()) {
+            Frame frame = new Frame.Builder().setBitmap(bitmap).build();
+
+            SparseArray<TextBlock> items = textRecognizer.detect(frame);
+            StringBuilder stringBuilder = new StringBuilder();
+
+            for (int i = 0; i < items.size(); i++) {
+                TextBlock textBlock = items.valueAt(i);
+                stringBuilder.append(textBlock.getValue());
+                stringBuilder.append("\n");
+            }
+            t = stringBuilder.toString();
+        } else {
+//            Log.d(TAG, "processImage: ");
+        }
+        return t;
+    }
+
+    private Bitmap saveBitmap(Bitmap bitmap, String filename) throws Exception {
         Matrix matrix = new Matrix();
         matrix.postRotate(90);
-        Bitmap bmp = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-        File file = new File(Environment.getExternalStorageDirectory() + "/Tensorflow/" + System.currentTimeMillis() + ".jpg");
-        if (!file.exists()) {
-            file.createNewFile();
+        bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+        final String root =
+                Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "tensorflow";
+        final File myDir = new File(root);
+
+        if (!myDir.mkdirs()) {
+            LOGGER.i("Make dir failed");
         }
-        FileOutputStream outputStream = new FileOutputStream(file);
-        bmp.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
-        outputStream.flush();
-        outputStream.close();
-        return bmp;
+        final File file = new File(myDir, filename);
+        if (file.exists()) {
+            file.delete();
+        }
+        try {
+            final FileOutputStream out = new FileOutputStream(file);
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 99, out);
+            out.flush();
+            out.close();
+        } catch (final Exception e) {
+            LOGGER.e(e, "Exception!");
+        }
+        return bitmap;
     }
 
     private Bitmap cutBitmap(Bitmap originalBitmap, int x, int y, int width, int height) {
