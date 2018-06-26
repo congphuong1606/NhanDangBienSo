@@ -54,6 +54,7 @@ import org.tensorflow.demo.env.Logger;
 import org.tensorflow.demo.model.BienSo;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Collections;
@@ -95,7 +96,6 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
     private OverlayView detectionOverlay;
     private List<Classifier.Recognition> mappedRecognitions =
             new LinkedList<>();
-    private String textw;
 
     @Override
     public void onPreviewSizeChosen(final Size size, final int rotation) {
@@ -193,20 +193,18 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                         for (final Classifier.Recognition result : results) {
                             final RectF location = result.getLocation();
                             if (location != null && result.getConfidence() >= MINIMUM_CONFIDENCE_TF_OD_API) {
-
                                 canvas.drawRect(location, paint);
                                 cropToFrameTransform.mapRect(location);
                                 result.setLocation(location);
                                 mappedRecognitions.add(result);
                                 final int x = (int) location.left;
-                                final int y = (int) location.top;
-                                final int w = (int) location.right - (int) location.left;
-                                final int h = (int) location.bottom - (int) location.top;
-
+                                final int y = (int) location.top ;
+                                final int w = (int) location.right - (int) location.left ;
+                                final int h = (int) location.bottom - (int) location.top ;
+                                Bitmap bitmap = null;
 
                                 try {
-//                                    bitmap2=ImageUtils.saveBitmap();saveBitmap(cutBitmap(rgbFrameBitmap, x, y, w, h));
-                                    bitmap2 = saveBitmap(cutBitmap(rgbFrameBitmap, x, y, w, h), System.currentTimeMillis() + "");
+                                    bitmap=saveBitmap(cutBitmap(rgbFrameBitmap, x, y, w, h));
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -217,13 +215,10 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                                     }
                                 }
                                 if (flag == -1) {
-                                    if(result.getConfidence()>=0.999f){
-                                        textw = processImage(bitmap2);
-                                    }
-                                    bienSos.add(new BienSo(Integer.valueOf(result.getId()), bitmap2));
-                                } else {
+                                    bienSos.add(new BienSo(Integer.valueOf(result.getId()), bitmap));
+                                }else {
                                     bienSos.remove(flag);
-                                    bienSos.add(flag, new BienSo(flag, bitmap2));
+                                    bienSos.add(flag,new BienSo(flag, bitmap));
                                 }
 
 
@@ -232,13 +227,8 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                if (!bienSos.isEmpty()) {
-                                    bienSoAdapter.notifyDataSetChanged();
-                                }
-                                if (textw != "") {
-                                    tvBienSo.setText(textw);
-                                }
-
+                                if (!bienSos.isEmpty())
+                                bienSoAdapter.notifyDataSetChanged();
                             }
                         });
 
@@ -252,51 +242,19 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                 });
     }
 
-    private String processImage(Bitmap bitmap) {
-        String t = "not operational";
-        TextRecognizer textRecognizer = new TextRecognizer.Builder(getApplicationContext()).build();
-        if (textRecognizer.isOperational()) {
-            Frame frame = new Frame.Builder().setBitmap(bitmap).build();
-
-            SparseArray<TextBlock> items = textRecognizer.detect(frame);
-            StringBuilder stringBuilder = new StringBuilder();
-
-            for (int i = 0; i < items.size(); i++) {
-                TextBlock textBlock = items.valueAt(i);
-                stringBuilder.append(textBlock.getValue());
-                stringBuilder.append("\n");
-            }
-            t = stringBuilder.toString();
-        } else {
-//            Log.d(TAG, "processImage: ");
-        }
-        return t;
-    }
-
-    private Bitmap saveBitmap(Bitmap bitmap, String filename) throws Exception {
+    private Bitmap saveBitmap(Bitmap bitmap) throws Exception {
         Matrix matrix = new Matrix();
         matrix.postRotate(90);
-        bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-        final String root =
-                Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "tensorflow";
-        final File myDir = new File(root);
-
-        if (!myDir.mkdirs()) {
-            LOGGER.i("Make dir failed");
+        Bitmap bmp = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+        File file = new File(Environment.getExternalStorageDirectory() + "/Tensorflow/" + System.currentTimeMillis() + ".jpg");
+        if (!file.exists()) {
+            file.createNewFile();
         }
-        final File file = new File(myDir, filename);
-        if (file.exists()) {
-            file.delete();
-        }
-        try {
-            final FileOutputStream out = new FileOutputStream(file);
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 99, out);
-            out.flush();
-            out.close();
-        } catch (final Exception e) {
-            LOGGER.e(e, "Exception!");
-        }
-        return bitmap;
+        FileOutputStream outputStream = new FileOutputStream(file);
+        bmp.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+        outputStream.flush();
+        outputStream.close();
+        return bmp;
     }
 
     private Bitmap cutBitmap(Bitmap originalBitmap, int x, int y, int width, int height) {
